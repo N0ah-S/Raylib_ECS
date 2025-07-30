@@ -1,0 +1,12 @@
+{
+  "name" : "mapentities",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "7087dcfba66c8da4acb50b09ea680b4e9050a4e9",
+  "dependencies" : [ {
+    "name" : "flecs",
+    "version>=" : "4.1.0"
+  }, {
+    "name" : "raylib",
+    "version>=" : "5.5"
+  } ]
+}
