@@ -25,12 +25,8 @@ int main() {
     world.import<RenderingSystems>();
 
     while (!WindowShouldClose()) {
-
-
-
         world.progress(GetFrameTime());
     }
-
     CloseWindow();
 
     return 0;

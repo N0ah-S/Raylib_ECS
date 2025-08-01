@@ -11,30 +11,17 @@
 #include <cstdio>
 
 #include "../sim/components.h"
-#include "lunasvg.h"
+
+#define RETURN it.fini();\
+                return;
 
 Camera2D camera = { 0 };
-Texture2D texture;
-lunasvg::Bitmap bitmap;
+flecs::entity selected;
+
 void InitRaylib() {
     glfwWindowHint(GLFW_SAMPLES, 8);
     InitWindow(800, 600, "Raylib FLECS Test");
     SetTargetFPS(60);
-
-    auto document = lunasvg::Document::loadFromFile("../assets/svg/Rettungswesen_Fahrzeuge/KTW.svg");
-
-     bitmap = document->renderToBitmap(32,32);
-    //bitmap.writeToPng("../assets/png/s/KTW.png");
-
-    Image image = {
-            .data = bitmap.data(),
-            .width = bitmap.width(),
-            .height = bitmap.height(),
-            .mipmaps = 1, //ARGB32_
-            .format = PIXELFORMAT_UNCOMPRESSED_R16G16B16A16   ,
-    };     // Loaded in CPU memory (RAM)
-    texture = LoadTextureFromImage(image);
-
 
     camera.target = (Vector2){ 800/2.0f, 600/2.0f };
     camera.offset = (Vector2){ 800/2.0f, 600/2.0f };
@@ -45,22 +32,64 @@ void InitRaylib() {
 struct InRenderRange {};
 
 struct RenderingSystems {
+
+    static void UnitCommand(flecs::iter& it) {
+        if(!IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            RETURN;
+        }
+        if(selected.is_valid()) {
+            Vector2 mouse = GetScreenToWorld2D(GetMousePosition(), camera);
+            selected.set<>((Target) mouse);
+            selected.set<>(BLUE);
+            selected = it.world().entity(0);
+        }
+
+        const int TOLERANCE = 10 * 10;
+        Vector2 mouse = GetScreenToWorld2D(GetMousePosition(), camera) - Vector2 {5, 5};
+        while (it.next()) {
+            auto p = it.field<Position>(0);
+            auto color = it.field<Color>(1);
+
+            for (auto i : it) {
+                if(Vector2LengthSqr((p[i] - mouse)) < TOLERANCE) {
+                    selected = it.entity(i);
+                    color[i] = PINK;
+                    RETURN
+                }
+            }
+        }
+        selected = it.world().entity(0); // Invalid entity
+    }
+
     explicit RenderingSystems(flecs::world& world) {
         world.module<RenderingSystems>();
 
         world.system<Position, Color>()
+                .kind(flecs::PreUpdate)
+                .with<InRenderRange>()
+                .run(UnitCommand);
+
+        world.system<Position>()
                 .kind(flecs::PreStore)
-                .each([](flecs::entity e, const Position& p, Color& c){
+                .run([](flecs::iter& it){
                     constexpr float BORDER = -30;
                     const float minX = camera.target.x - camera.offset.x - BORDER;
                     const float minY = camera.target.y - camera.offset.y - BORDER;
                     const float maxX = camera.target.x + camera.offset.x + BORDER;
                     const float maxY = camera.target.y + camera.offset.y + BORDER;
-                    if(p.x < minX || p.y < minY || p.x > maxX || p.y > maxY) {
-                        e.remove<InRenderRange>();
-                    } else {
-                        e.add<InRenderRange>();
+
+                    while (it.next()) {
+                        auto p = it.field<Position>(0);
+
+                        for (auto i: it) {
+                            if (p[i].x < minX || p[i].y < minY || p[i].x > maxX || p[i].y > maxY) {
+                                it.entity(i).remove<InRenderRange>();
+                            } else {
+                                it.entity(i).add<InRenderRange>();
+                            }
+                        }
                     }
+
                 });
 
         world.system("Render.Setup")
@@ -75,14 +104,14 @@ struct RenderingSystems {
                 .kind(flecs::OnStore)
                 .with<InRenderRange>()
                 .each([](flecs::iter& it, size_t, Position& p, Color& color) {
-                    DrawTextureEx(texture, p, 0, 1., WHITE);
+                    //DrawTextureEx(texture, p, 0, 1., WHITE);
                     DrawRectangleRec({p.x, p.y, 10, 10}, color);
                 });
 
         world.system("Render.Finalize")
                 .kind(flecs::PostFrame)
                 .run([](flecs::iter& it) {
-                    //EndMode2D();
+                    EndMode2D();
                     DrawText("Fun Stuff", 28, 42, 20, BLACK);
                     EndDrawing();
                 });
