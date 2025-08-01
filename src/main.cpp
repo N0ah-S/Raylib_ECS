@@ -7,7 +7,7 @@
 #include "render/rendering.h"
 
 int main() {
-    InitRaylib();
+    rendering::InitRaylib();
     
     flecs::world world;
 
@@ -22,7 +22,7 @@ int main() {
     }
 
     world.import<SimulationSystems>();
-    world.import<RenderingSystems>();
+    world.import<rendering::RenderingSystems>();
 
     while (!WindowShouldClose()) {
         world.progress(GetFrameTime());
